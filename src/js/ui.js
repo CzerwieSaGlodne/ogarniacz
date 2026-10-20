@@ -7,6 +7,48 @@ window.UI = (function () {
 
   const layer = () => document.getElementById('layer');
 
+  /* ---------- Historia nakładek ----------
+     Każde otwarte menu lub potwierdzenie dodaje wpis w historii.
+     Dzięki temu przycisk Wstecz zamyka tylko tę nakładkę, a nie całą
+     aplikację (i nie zamyka karty ani szuflady pod nią). */
+
+  let activeConfirm = null;
+  let overlayBackTimer = null;
+  let ignoreNextPop = false;
+
+  function openOverlayHistory(kind) {
+    if (overlayBackTimer) {
+      clearTimeout(overlayBackTimer);
+      overlayBackTimer = null;
+    }
+    ignoreNextPop = false;
+
+    const onOverlay = !!(history.state && history.state.ogOverlay);
+    try {
+      if (onOverlay) history.replaceState({ ogOverlay: kind }, '');
+      else history.pushState({ ogOverlay: kind }, '');
+    } catch { /* brak historii - nakładka nadal działa */ }
+  }
+
+  function scheduleOverlayHistoryBack() {
+    if (overlayBackTimer) clearTimeout(overlayBackTimer);
+    if (!history.state || !history.state.ogOverlay) {
+      ignoreNextPop = false;
+      overlayBackTimer = null;
+      return;
+    }
+
+    ignoreNextPop = true;
+    overlayBackTimer = setTimeout(() => {
+      overlayBackTimer = null;
+      if (history.state && history.state.ogOverlay) {
+        try { history.back(); } catch { ignoreNextPop = false; }
+      } else {
+        ignoreNextPop = false;
+      }
+    }, 0);
+  }
+
   function esc(text) {
     return String(text == null ? '' : text)
       .replace(/&/g, '&amp;')
@@ -36,7 +78,7 @@ window.UI = (function () {
 
     return new Promise((resolve) => {
       const overlay = document.createElement('div');
-      overlay.className = 'overlay no-anim';
+      overlay.className = 'overlay no-anim confirm-overlay';
       overlay.innerHTML = `
         <div class="confirm-box">
           <h3>${esc(title)}</h3>
@@ -47,9 +89,15 @@ window.UI = (function () {
           </div>
         </div>`;
 
-      function finish(result) {
+      let done = false;
+
+      function finish(result, fromHistory) {
+        if (done) return;
+        done = true;
         overlay.remove();
         document.removeEventListener('keydown', onKey);
+        activeConfirm = null;
+        if (!fromHistory) scheduleOverlayHistoryBack();
         resolve(result);
       }
 
@@ -65,6 +113,8 @@ window.UI = (function () {
         finish(role.dataset.role === 'ok');
       });
 
+      activeConfirm = { finish: (result) => finish(result, true) };
+      openOverlayHistory('confirm');
       document.addEventListener('keydown', onKey);
       layer().appendChild(overlay);
       overlay.querySelector('[data-role="ok"]').focus();
@@ -74,18 +124,27 @@ window.UI = (function () {
   /* ---------- Rozwijane menu ---------- */
 
   let openPopover = null;
+  let sheetBackdrop = null;
 
-  function closePopover() {
+  function closePopover(fromHistory) {
+    const hadPopover = !!openPopover;
     if (openPopover) {
       openPopover.remove();
       openPopover = null;
     }
+    if (sheetBackdrop) {
+      sheetBackdrop.remove();
+      sheetBackdrop = null;
+    }
+    if (hadPopover && !fromHistory) scheduleOverlayHistoryBack();
   }
 
   /* anchor - przycisk lub punkt, w którym kliknięto prawym przyciskiem myszy
      items  - { label, icon, danger, onClick } | { sep: true } | { heading } | { emojis: [], onPick } */
   function popover(anchor, items, position) {
-    closePopover();
+    /* Zamiana jednego arkusza na drugi (np. „Przenieś do…”) korzysta
+       z tego samego wpisu historii - bez cofania i migotania. */
+    closePopover(true);
 
     const menu = document.createElement('div');
     menu.className = 'popover';
@@ -154,29 +213,43 @@ window.UI = (function () {
       menu.appendChild(button);
     });
 
-    document.body.appendChild(menu);
+    const isSheet = window.matchMedia('(max-width: 900px)').matches;
 
-    /* pozycja: pod przyciskiem albo w miejscu kliknięcia prawym przyciskiem */
-    const menuRect = menu.getBoundingClientRect();
-    let left;
-    let top;
-
-    if (position) {
-      left = position.x;
-      top = position.y;
-    } else {
-      const rect = anchor.getBoundingClientRect();
-      left = rect.left;
-      top = rect.bottom + 6;
+    if (isSheet) {
+      menu.classList.add('sheet');
+      sheetBackdrop = document.createElement('div');
+      sheetBackdrop.className = 'popover-backdrop';
+      sheetBackdrop.addEventListener('click', () => closePopover());
+      document.body.appendChild(sheetBackdrop);
     }
 
-    if (left + menuRect.width > window.innerWidth - 10) left = window.innerWidth - menuRect.width - 10;
-    if (top + menuRect.height > window.innerHeight - 10) top = Math.max(8, top - menuRect.height - 12);
+    document.body.appendChild(menu);
 
-    menu.style.left = `${Math.max(8, left)}px`;
-    menu.style.top = `${Math.max(8, top)}px`;
+    /* Na telefonie menu jest dolnym arkuszem - pozycję ustala CSS. */
+    if (!isSheet) {
+      /* pozycja: pod przyciskiem albo w miejscu kliknięcia prawym przyciskiem */
+      const menuRect = menu.getBoundingClientRect();
+      let left;
+      let top;
+
+      if (position) {
+        left = position.x;
+        top = position.y;
+      } else {
+        const rect = anchor.getBoundingClientRect();
+        left = rect.left;
+        top = rect.bottom + 6;
+      }
+
+      if (left + menuRect.width > window.innerWidth - 10) left = window.innerWidth - menuRect.width - 10;
+      if (top + menuRect.height > window.innerHeight - 10) top = Math.max(8, top - menuRect.height - 12);
+
+      menu.style.left = `${Math.max(8, left)}px`;
+      menu.style.top = `${Math.max(8, top)}px`;
+    }
 
     openPopover = menu;
+    openOverlayHistory('popover');
     return menu;
   }
 
@@ -186,12 +259,13 @@ window.UI = (function () {
 
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape' && openPopover) {
+      e.preventDefault();
       e.stopPropagation();
       closePopover();
     }
   });
 
-  window.addEventListener('resize', closePopover);
+  window.addEventListener('resize', () => closePopover());
 
   /* własne menu zamiast systemowego (ważne przy prawym kliknięciu) */
   document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -234,5 +308,74 @@ let dimmer = null;
     return many;
   }
 
-  return { esc, toast, confirm: confirmBox, popover, closePopover, autoGrow, formatDate, plural, setDim };
+  /* ---------- Współpraca z przyciskiem Wstecz ---------- */
+
+  /* Wywoływane przez Mobile przed zamykaniem karty lub szuflady.
+     Zwraca true, jeśli Wstecz zostało już obsłużone przez nakładkę. */
+  function handleBack() {
+    if (overlayBackTimer) {
+      clearTimeout(overlayBackTimer);
+      overlayBackTimer = null;
+    }
+
+    if (openPopover) {
+      closePopover(true);
+      ignoreNextPop = false;
+      return true;
+    }
+
+    if (activeConfirm) {
+      const current = activeConfirm;
+      activeConfirm = null;
+      current.finish(false);
+      ignoreNextPop = false;
+      return true;
+    }
+
+    if (ignoreNextPop) {
+      ignoreNextPop = false;
+      return true;
+    }
+
+    return false;
+  }
+
+  /* Zamknięcie karty lub szuflady, nad którą zdążyło otworzyć się
+     potwierdzenie (np. „Usuń kartę” → Tak). Wtedy trzeba cofnąć
+     dwa wpisy historii: potwierdzenie i warstwę pod nim. */
+  function prepareLayerClose() {
+    if (overlayBackTimer) {
+      clearTimeout(overlayBackTimer);
+      overlayBackTimer = null;
+    }
+    const onOverlay = !!(history.state && history.state.ogOverlay);
+    ignoreNextPop = onOverlay;
+    return onOverlay;
+  }
+
+  /* Otwarcie karty lub szuflady w miejsce właśnie zamykanego menu
+     (np. „Otwórz kartę”) nie dodaje drugiego wpisu do historii. */
+  function claimHistoryForLayer(name) {
+    const onOverlay = !!(history.state && history.state.ogOverlay);
+    if (overlayBackTimer) {
+      clearTimeout(overlayBackTimer);
+      overlayBackTimer = null;
+    }
+    ignoreNextPop = false;
+    if (openPopover) closePopover(true);
+    if (!onOverlay) return false;
+
+    try {
+      history.replaceState({ ogLayer: name }, '');
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  return {
+    esc, toast, confirm: confirmBox, popover, closePopover,
+    handleBack, claimHistoryForLayer, prepareLayerClose,
+    autoGrow, formatDate, plural, setDim
+  };
 })();

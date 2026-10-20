@@ -2,11 +2,22 @@
 <html lang="pl" data-theme="pastel">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport"
+        content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; manifest-src 'self'; connect-src 'self'">
+  <meta name="theme-color" content="#4a4460" id="themeColor">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="OGARNIACZ">
   <title>OGARNIACZ</title>
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
+  <link rel="apple-touch-icon" href="assets/icon-192.png">
   <link rel="stylesheet" href="css/themes.css">
   <link rel="stylesheet" href="css/app.css">
+  <link rel="stylesheet" href="css/mobile.css">
 </head>
 <body>
   <div class="titlebar">OGARNIACZ</div>
@@ -17,6 +28,7 @@
       <div class="brand">
         <img src="assets/logo.png" alt="">
         <span class="brand-name">OgarNIACZ</span>
+        <button class="icon-btn drawer-close mobile-only" id="drawerClose" aria-label="Zamknij menu" title="Zamknij menu">✕</button>
       </div>
 
       <div class="search-wrap">
@@ -25,7 +37,8 @@
           <circle cx="11" cy="11" r="7"></circle>
           <path d="m20 20-3.2-3.2"></path>
         </svg>
-        <input id="boardSearch" type="search" placeholder="Szukaj tablic..." autocomplete="off" spellcheck="false">
+        <input id="boardSearch" type="search" placeholder="Szukaj tablic..." aria-label="Szukaj tablic"
+               autocomplete="off" spellcheck="false">
       </div>
 
       <nav class="board-list" id="boardList"></nav>
@@ -33,18 +46,28 @@
       <button class="btn add-board" id="addBoardBtn">+ Nowa tablica</button>
 
       <div class="sidebar-foot">
+        <button class="side-link" id="installBtn" hidden>
+          <span>📲</span> Zainstaluj aplikację
+        </button>
         <button class="side-link" id="exportBtn">
           <span>💾</span> Zapisz kopię tablic
         </button>
         <button class="side-link" id="importBtn">
           <span>📂</span> Wczytaj kopię tablic
         </button>
+        <div class="backup-status" id="backupStatus"></div>
       </div>
     </aside>
 
     <!-- ============ Tablica ============ -->
     <main class="main">
       <header class="board-head">
+        <button class="icon-btn mobile-only" id="menuBtn" aria-label="Otwórz menu tablic" title="Menu tablic">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+               stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"></path>
+          </svg>
+        </button>
         <h1 class="board-title" id="boardTitle" title="Kliknij, aby zmienić nazwę">Tablica</h1>
         <span class="board-count" id="boardStats"></span>
         <div class="head-spacer"></div>
@@ -52,7 +75,7 @@
           <span class="theme-swatch"><i></i><i></i><i></i></span>
           <span id="themeName">Pastelowy</span>
         </button>
-        <button class="icon-btn" id="boardMenuBtn" title="Menu tablicy">⋯</button>
+        <button class="icon-btn" id="boardMenuBtn" title="Menu tablicy" aria-label="Menu tablicy">⋯</button>
       </header>
 
       <div class="board-scroll" id="boardScroll">
@@ -62,10 +85,13 @@
     </main>
   </div>
 
+  <div class="drawer-backdrop" id="drawerBackdrop"></div>
+
   <!-- okno karty, potwierdzenia i menu wstawiane są tutaj -->
   <div id="layer"></div>
 
   <script src="js/seed.js"></script>
+  <script src="js/storage.js"></script>
   <script src="js/store.js"></script>
   <script src="js/ui.js"></script>
   <script src="js/dnd.js"></script>
@@ -73,5 +99,6 @@
   <script src="js/board.js"></script>
   <script src="js/card.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/pwa.js"></script>
 </body>
 </html>

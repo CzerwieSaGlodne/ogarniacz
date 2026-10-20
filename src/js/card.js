@@ -19,13 +19,16 @@ window.Card = (function () {
     ctx = { cardId: found.card.id, boardId: found.board.id, listId: found.list.id };
     paint(true);
     document.addEventListener('keydown', onKeydown, true);
+    if (window.Mobile) window.Mobile.openLayer('card', () => close(true));
   }
 
-  function close() {
+  function close(fromHistory) {
     document.removeEventListener('keydown', onKeydown, true);
+    window.UI.closePopover();
     if (overlay) overlay.remove();
     overlay = null;
     ctx = null;
+    if (!fromHistory && window.Mobile) window.Mobile.closeLayer();
   }
 
   function current() {
@@ -65,11 +68,11 @@ window.Card = (function () {
       <div class="modal">
         <div class="modal-head">
           <div class="modal-tools">
-            <button class="icon-btn" data-role="close" title="Zamknij (Esc)">✕</button>
-            <button class="icon-btn danger" data-role="delete" title="Usuń kartę">🗑</button>
+            <button class="icon-btn" data-role="close" title="Zamknij (Esc)" aria-label="Zamknij kartę">✕</button>
+            <button class="icon-btn danger" data-role="delete" title="Usuń kartę" aria-label="Usuń kartę">🗑</button>
           </div>
           <textarea class="modal-title" data-role="title" data-key="title"
-                    placeholder="Tytuł karty">${window.UI.esc(card.title)}</textarea>
+                    placeholder="Tytuł karty" aria-label="Tytuł karty">${window.UI.esc(card.title)}</textarea>
         </div>
 
         <div class="modal-body">
@@ -80,6 +83,8 @@ window.Card = (function () {
                 ${window.Store.LABELS.map((l) => `
                   <button class="label-chip ${card.labels.includes(l.id) ? 'on' : ''}"
                           data-role="label" data-label="${l.id}" title="${l.name}"
+                          aria-label="Kategoria: ${l.name}"
+                          aria-pressed="${card.labels.includes(l.id)}"
                           style="background:${l.color}"></button>`).join('')}
               </div>
             </div>
@@ -281,6 +286,7 @@ window.Card = (function () {
       const labels = on ? card.labels.filter((l) => l !== id) : card.labels.concat(id);
       window.Store.updateCard(ctx.boardId, ctx.listId, ctx.cardId, { labels });
       labelChip.classList.toggle('on', !on);
+      labelChip.setAttribute('aria-pressed', String(!on));
       return;
     }
 

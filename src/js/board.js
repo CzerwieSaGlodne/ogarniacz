@@ -23,6 +23,7 @@ window.Board = (function () {
   let cardDraft = { listId: null, text: '' };
   let listDraft = { open: false, text: '' };
   let checkDraft = { cardId: null, text: '' };
+  let renderedBoardId = null;
 
   const THEME_PREVIEW = {
     pastel: ['#e4d2de', '#b184d4', '#7cc0e8', '#8ad4a0'],
@@ -43,11 +44,12 @@ window.Board = (function () {
     statsEl.textContent = `${board.lists.length} ${window.UI.plural(board.lists.length, 'lista', 'listy', 'list')} · ${
       cards} ${window.UI.plural(cards, 'karta', 'karty', 'kart')}`;
 
-    const scrollLeft = scroller.scrollLeft;
+    const scrollLeft = renderedBoardId === board.id ? scroller.scrollLeft : 0;
     const cardsHtml = board.lists.map((list, i) => renderList(board, list, i)).join('');
     const addListHtml = listDraft.open ? renderListComposer() : '';
     listsEl.innerHTML = cardsHtml + addListHtml;
     scroller.scrollLeft = scrollLeft;
+    renderedBoardId = board.id;
 
     renderTheme(state.theme);
     restoreFocus();
@@ -67,8 +69,10 @@ window.Board = (function () {
         <header class="list-head">
           <h2 class="list-title" data-role="list-title" title="Kliknij, aby zmienić nazwę">${window.UI.esc(list.name)}</h2>
           <span class="list-count">${list.cards.length}</span>
-          <button class="icon-btn" data-role="list-menu" title="Menu listy">⋯</button>
-          <button class="mini-del" data-role="delete-list" data-id="${list.id}" title="Usuń listę">✕</button>
+          <button class="icon-btn" data-role="list-menu" title="Menu listy"
+                  aria-label="Menu listy: ${window.UI.esc(list.name)}">⋯</button>
+          <button class="mini-del" data-role="delete-list" data-id="${list.id}" title="Usuń listę"
+                  aria-label="Usuń listę: ${window.UI.esc(list.name)}">✕</button>
         </header>
         <div class="cards">${cards}</div>
         ${composer || `<button class="btn btn-ghost" data-role="add-card" style="margin:0 9px 9px;text-align:left">+ Dodaj kartę</button>`}
@@ -93,9 +97,13 @@ window.Board = (function () {
       <article class="card ${card.done ? 'done' : ''}" data-drag="card" data-id="${card.id}"
                data-list="${list.id}" data-board="${board.id}">
         <div class="card-tools">
+          <button class="mini-menu" data-role="card-menu" data-id="${card.id}" title="Menu karty"
+                  aria-label="Menu karty: ${window.UI.esc(card.title)}">⋯</button>
           <button class="mini-done" data-role="toggle-done" data-id="${card.id}"
-                  title="${card.done ? 'Cofnij oznaczenie wykonania' : 'Oznacz jako wykonane'}">✓</button>
-          <button class="mini-del" data-role="delete-card" data-id="${card.id}" title="Usuń kartę">✕</button>
+                  title="${card.done ? 'Cofnij oznaczenie wykonania' : 'Oznacz jako wykonane'}"
+                  aria-label="${card.done ? 'Cofnij oznaczenie wykonania' : 'Oznacz jako wykonane'}: ${window.UI.esc(card.title)}">✓</button>
+          <button class="mini-del" data-role="delete-card" data-id="${card.id}" title="Usuń kartę"
+                  aria-label="Usuń kartę: ${window.UI.esc(card.title)}">✕</button>
         </div>
         ${labels ? `<div class="card-labels">${labels}</div>` : ''}
         <div class="card-title">${window.UI.esc(card.title)}</div>
@@ -356,6 +364,7 @@ window.Board = (function () {
       } },
       { sep: true },
       { label: 'Otwórz kartę', icon: '✏️', onClick: () => window.Card.open(cardId) },
+      { label: 'Przenieś do…', icon: '📦', onClick: () => moveCardMenu(cardEl) },
       { label: 'Duplikuj kartę', icon: '📋', onClick: () => {
         window.Store.duplicateCard(boardId, listId, cardId);
         window.UI.toast('Karta skopiowana.');
@@ -369,11 +378,66 @@ window.Board = (function () {
     menu.style.minWidth = '210px';
   }
 
+  function moveCardMenu(cardEl) {
+    const cardId = cardEl.dataset.id;
+    const boardId = cardEl.dataset.board;
+    const listId = cardEl.dataset.list;
+    const state = window.Store.get();
+
+    const items = [{ heading: 'Przenieś kartę do tablicy' }];
+    state.boards.forEach((board) => {
+      items.push({
+        label: board.name,
+        icon: board.id === boardId ? '📍' : '📂',
+        onClick: () => chooseTargetList(cardEl, board)
+      });
+    });
+    window.UI.popover(cardEl, items);
+  }
+
+  function chooseTargetList(cardEl, board) {
+    const cardId = cardEl.dataset.id;
+    const fromBoard = cardEl.dataset.board;
+    const fromList = cardEl.dataset.list;
+
+    if (!board.lists.length) {
+      const list = window.Store.addList(board.id, 'Do zrobienia');
+      window.Store.moveCard(cardId, board.id, list.id, null);
+      window.UI.toast(`Karta przeniesiona do: ${board.name}`);
+      return;
+    }
+
+    const items = [{ heading: board.name }];
+    board.lists.forEach((list) => {
+      items.push({
+        label: list.name,
+        icon: list.id === fromList && board.id === fromBoard ? '📍' : '📋',
+        onClick: () => {
+          window.Store.moveCard(cardId, board.id, list.id, null);
+          window.UI.toast(`Karta przeniesiona do: ${board.name} / ${list.name}`);
+        }
+      });
+    });
+    window.UI.popover(cardEl, items);
+  }
+
   function listMenu(anchor, listEl, position) {
     const boardId = listEl.dataset.board;
     const listId = listEl.dataset.id;
     const list = window.Store.getList(boardId, listId);
     if (!list) return;
+    const board = window.Store.getBoard(boardId);
+    const index = board ? board.lists.findIndex((l) => l.id === listId) : -1;
+
+    const moveItems = [];
+    if (board && index > 0) {
+      moveItems.push({ label: 'Przesuń listę w lewo', icon: '←', onClick: () =>
+        window.Store.reorderLists(boardId, listId, index - 1) });
+    }
+    if (board && index !== -1 && index < board.lists.length - 1) {
+      moveItems.push({ label: 'Przesuń listę w prawo', icon: '→', onClick: () =>
+        window.Store.reorderLists(boardId, listId, index + 2) });
+    }
 
     window.UI.popover(anchor, [
       { heading: list.name },
@@ -390,6 +454,7 @@ window.Board = (function () {
           window.UI.toast('Lista wyczyszczona.');
         }
       } },
+      ...moveItems,
       { sep: true },
       { label: 'Usuń listę', icon: '🗑️', danger: true, onClick: () => deleteList(boardId, listId) }
     ], position);
@@ -465,6 +530,13 @@ window.Board = (function () {
   function onClick(e) {
     /* podczas pisania nie otwieramy okna karty */
     if (e.target.closest('[data-role="card-text"], [data-role="list-text"], .card-check-input')) return;
+
+    const cardMenuBtn = e.target.closest('[data-role="card-menu"]');
+    if (cardMenuBtn) {
+      e.stopPropagation();
+      cardMenu(cardMenuBtn, cardMenuBtn.closest('.card'));
+      return;
+    }
 
     const delCard = e.target.closest('[data-role="delete-card"]');
     if (delCard) {

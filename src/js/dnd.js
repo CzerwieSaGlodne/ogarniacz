@@ -1,7 +1,11 @@
 'use strict';
 /* Przeciąganie myszką i palcem.
    Działa na własnych zdarzeniach pointer (nie HTML5 drag), więc wygląda tak samo
-   niezależnie od przeglądarki i można z tego korzystać dotykiem.
+   niezależnie od przeglądarki.
+
+   Na komputerze przeciąganie zaczyna się po lekkim ruchu myszką.
+   Na telefonie trzeba najpierw przytrzymać palec (żeby zwykłe przewijanie
+   listy nie łapało karty).
 
    Trzy rodzaje:
      data-drag="card"  -> karta (między listami i między tablicami)
@@ -11,14 +15,19 @@
 window.Dnd = (function () {
   'use strict';
 
-  const START_THRESHOLD = 6;   // ile pikseli ruchu oznacza przeciąganie
-  const EDGE = 70;             // odległość od krawędzi, od której zaczyna się przewijanie
+  const START_THRESHOLD = 6;      // ruch myszką, od którego zaczyna się przeciąganie
+  const TOUCH_DELAY = 280;        // przytrzymanie palca
+  const TOUCH_TOLERANCE = 10;     // ruch palca przed przytrzymaniem = przewijanie
+  const EDGE = 70;                // odległość od krawędzi, od której zaczyna się przewijanie
   const MAX_SCROLL_SPEED = 22;
 
   let pending = null;   // wciśnięcie, jeszcze bez ruchu
   let active = null;    // przeciąganie w toku
   let dropLine = null;
-  let justDragged = false;
+  let touchTimer = null;
+  let lastDragAt = 0;
+
+  const isTouch = (e) => e.pointerType === 'touch' || e.pointerType === 'pen';
 
   /* ---------- Start ---------- */
 
@@ -27,37 +36,61 @@ window.Dnd = (function () {
 
     const handle = e.target.closest('[data-drag]');
     if (!handle) return;
-    if (e.target.closest('input, textarea, button')) return;
+    if (e.target.closest('input, textarea, button, select, a')) return;
 
     pending = {
       pointerId: e.pointerId,
       startX: e.clientX,
       startY: e.clientY,
+      lastX: e.clientX,
+      lastY: e.clientY,
       el: handle,
       type: handle.dataset.drag,
       id: handle.dataset.id,
       boardId: handle.dataset.board || '',
       listId: handle.dataset.list || '',
-      scroller: document.getElementById('boardScroll')
+      scroller: document.getElementById('boardScroll'),
+      touch: isTouch(e)
     };
 
     document.addEventListener('pointermove', onMove);
     document.addEventListener('pointerup', onUp);
     document.addEventListener('pointercancel', onCancel);
     document.addEventListener('keydown', onKey);
+
+    /* Palec: najpierw czekamy. Dopiero przytrzymanie zaczyna przeciąganie. */
+    if (pending.touch) {
+      touchTimer = setTimeout(() => {
+        if (!pending || active) return;
+        begin({ clientX: pending.lastX, clientY: pending.lastY });
+      }, TOUCH_DELAY);
+    }
   });
 
   function onMove(e) {
     if (!pending || e.pointerId !== pending.pointerId) return;
 
+    pending.lastX = e.clientX;
+    pending.lastY = e.clientY;
+
     const dx = e.clientX - pending.startX;
     const dy = e.clientY - pending.startY;
+    const distance = Math.hypot(dx, dy);
 
     if (!active) {
-      if (Math.hypot(dx, dy) < START_THRESHOLD) return;
+      if (pending.touch) {
+        /* Ruch przed przytrzymaniem oznacza przewijanie - oddajemy gest
+           przeglądarce i nie blokujemy listy. */
+        if (distance > TOUCH_TOLERANCE) cancelPending();
+        return;
+      }
+      if (distance < START_THRESHOLD) return;
       begin(e);
     }
 
+    if (!active) return;
+
+    if (distance > 2) active.moved = true;
     moveGhost(e.clientX, e.clientY);
     findTarget(e.clientX, e.clientY);
     autoScroll(e.clientX, e.clientY);
@@ -65,6 +98,10 @@ window.Dnd = (function () {
   }
 
   function begin(e) {
+    if (!pending || active) return;
+    clearTimeout(touchTimer);
+    touchTimer = null;
+
     const el = pending.el;
     const rect = el.getBoundingClientRect();
 
@@ -82,15 +119,42 @@ window.Dnd = (function () {
       ghost,
       grabX: e.clientX - rect.left,
       grabY: e.clientY - rect.top,
-      target: null
+      target: null,
+      moved: false
     };
 
     el.classList.add('drag-source');
     document.body.classList.add('dragging');
     window.UI.closePopover();
 
-    justDragged = true;
-    setTimeout(() => { justDragged = false; }, 0);
+    /* Przytrzymanie palca: delikatna wibracja i blokada przewijania
+       dopiero teraz, gdy gest jest już przeciąganiem. */
+    if (pending.touch) {
+      if (navigator.vibrate) navigator.vibrate(12);
+      document.addEventListener('touchmove', blockTouch, { passive: false });
+    }
+
+    lastDragAt = Date.now() + 650;
+    findTarget(e.clientX, e.clientY);
+  }
+
+  function blockTouch(e) {
+    if (active) e.preventDefault();
+  }
+
+  function cancelPending() {
+    clearTimeout(touchTimer);
+    touchTimer = null;
+    removeListeners();
+    pending = null;
+  }
+
+  function removeListeners() {
+    document.removeEventListener('pointermove', onMove);
+    document.removeEventListener('pointerup', onUp);
+    document.removeEventListener('pointercancel', onCancel);
+    document.removeEventListener('keydown', onKey);
+    document.removeEventListener('touchmove', blockTouch);
   }
 
   /* ---------- Podczas przeciągania ---------- */
@@ -140,12 +204,9 @@ window.Dnd = (function () {
 
     if (active.type === 'board') {
       const container = document.getElementById('boardList');
-      const items = [...container.querySelectorAll('.board-item')].filter((el) => el !== active.el);
       const index = insertionIndex(container, '.board-item', y, 'y', active.el);
       showLine(container, index, container.clientWidth - 8);
-      // celem jest tablica poniżej linii, a przy upuszczeniu pod ostatnią - ostatnia
-      const target = items[index] || items[items.length - 1];
-      active.target = { kind: 'board', targetId: target ? target.dataset.id : '', index };
+      active.target = { kind: 'board', index };
     }
   }
 
@@ -199,12 +260,14 @@ window.Dnd = (function () {
     if (x > rect.right - EDGE) scroller.scrollLeft += MAX_SCROLL_SPEED;
     else if (x < rect.left + EDGE) scroller.scrollLeft -= MAX_SCROLL_SPEED;
 
-    // przewijanie długiej listy w pionie
-    const container = document.querySelector('.cards:hover');
-    if (container) {
+    /* Pionowe przewijanie listy pod palcem (na telefonie :hover nie działa). */
+    const under = document.elementFromPoint(x, y);
+    const list = under && under.closest('.list');
+    const container = list ? list.querySelector('.cards') : null;
+    if (container && container.scrollHeight > container.clientHeight + 1) {
       const box = container.getBoundingClientRect();
-      if (y > box.bottom - 40) container.scrollTop += MAX_SCROLL_SPEED;
-      else if (y < box.top + 40) container.scrollTop -= MAX_SCROLL_SPEED;
+      if (y > box.bottom - 48) container.scrollTop += MAX_SCROLL_SPEED;
+      else if (y < box.top + 48) container.scrollTop -= MAX_SCROLL_SPEED;
     }
   }
 
@@ -226,12 +289,12 @@ window.Dnd = (function () {
   }
 
   function finish(cancelled) {
-    document.removeEventListener('pointermove', onMove);
-    document.removeEventListener('pointerup', onUp);
-    document.removeEventListener('pointercancel', onCancel);
-    document.removeEventListener('keydown', onKey);
+    clearTimeout(touchTimer);
+    touchTimer = null;
+    removeListeners();
 
-    if (active && !cancelled && active.target) apply(active);
+    if (active) lastDragAt = Date.now() + 650;
+    if (active && !cancelled && active.target && active.moved) apply(active);
 
     if (active) {
       active.ghost.remove();
@@ -264,18 +327,25 @@ window.Dnd = (function () {
     }
 
     if (drag.type === 'list' && t.kind === 'list') {
-      window.Store.reorderLists(drag.boardId, drag.id, t.index);
+      /* indeks docelowy liczymy bez przeciąganej listy, a Store oczekuje
+         pozycji w oryginalnej tablicy */
+      const board = window.Store.getBoard(drag.boardId);
+      const from = board ? board.lists.findIndex((l) => l.id === drag.id) : -1;
+      const target = from !== -1 && t.index >= from ? t.index + 1 : t.index;
+      window.Store.reorderLists(drag.boardId, drag.id, target);
       return;
     }
 
-    if (drag.type === 'board' && t.kind === 'board' && t.targetId && t.targetId !== drag.id) {
-      window.Store.reorderBoards(drag.id, t.targetId);
+    if (drag.type === 'board' && t.kind === 'board') {
+      const boards = window.Store.get().boards;
+      const target = boards[Math.min(t.index, boards.length - 1)];
+      if (target && target.id !== drag.id) window.Store.reorderBoards(drag.id, target.id);
     }
   }
 
   /* Kliknięcie po przeciągnięciu nie powinno otwierać karty */
   document.addEventListener('click', (e) => {
-    if (justDragged) { e.stopPropagation(); e.preventDefault(); }
+    if (Date.now() < lastDragAt) { e.stopPropagation(); e.preventDefault(); }
   }, true);
 
   return {

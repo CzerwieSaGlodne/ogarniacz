@@ -363,6 +363,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 8px;
   border: 1px solid var(--accent);
   background: var(--surface);
+  color: var(--text);
   outline: none;
   width: 320px;
   max-width: 100%;
@@ -513,6 +514,7 @@ button { font-family: inherit; cursor: pointer; }
   border-radius: 6px;
   border: 1px solid var(--accent);
   background: var(--surface);
+  color: var(--text);
   outline: none;
 }
 
@@ -535,14 +537,14 @@ button { font-family: inherit; cursor: pointer; }
   box-shadow: 0 1px 2px rgba(0, 0, 0, .05);
   cursor: pointer;
   transition: box-shadow .14s, transform .1s, opacity .14s;
-  touch-action: none;
+  touch-action: manipulation;
 }
 
 .card:hover { box-shadow: var(--shadow-sm); transform: translateY(-1px); }
 .card:active { cursor: grabbing; }
 .card.drag-source { display: none; }
 
-/* przyciski w rogu karty: ✓ (wykonane) i ✕ (usuń) */
+/* przyciski w rogu karty: ⋯ (menu), ✓ (wykonane) i ✕ (usuń) */
 .card-tools {
   position: absolute;
   top: 4px;
@@ -578,7 +580,7 @@ button { font-family: inherit; cursor: pointer; }
   gap: 4px;
   margin-bottom: 6px;
   flex-wrap: wrap;
-  padding-right: 46px;
+  padding-right: 74px;
 }
 
 .card-labels:empty { display: none; }
@@ -595,6 +597,7 @@ button { font-family: inherit; cursor: pointer; }
   line-height: 1.45;
   word-break: break-word;
   white-space: pre-wrap;
+  padding-right: 74px;
 }
 
 .card.done .card-title {

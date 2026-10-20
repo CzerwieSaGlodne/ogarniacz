@@ -48,7 +48,7 @@ window.Store = (function () {
   /* ---------- I/O ---------- */
 
   async function init() {
-    const raw = window.api ? await window.api.load() : null;
+    const raw = window.StoreIO ? await window.StoreIO.load() : null;
     if (raw && Array.isArray(raw.boards) && raw.boards.length) {
       state = repair(raw);
     } else {
@@ -113,13 +113,26 @@ window.Store = (function () {
   }
 
   async function persist() {
-    if (!window.api) return;
-    const result = await window.api.save(state);
+    if (!window.StoreIO) return;
+    const result = await window.StoreIO.save(state);
     if (result && !result.ok && !saveErrorShown) {
       saveErrorShown = true;
       window.UI && window.UI.toast('Nie udało się zapisać pliku z tablicami.');
     }
   }
+
+  /* Natychmiastowy zapis - ważny na telefonie, gdy aplikacja znika w tle. */
+  function flush() {
+    clearTimeout(saveTimer);
+    if (!state) return Promise.resolve();
+    return persist();
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') flush();
+  });
+
+  window.addEventListener('pagehide', () => { flush(); });
 
   async function replaceAll(newState) {
     state = repair(newState);
@@ -381,7 +394,7 @@ window.Store = (function () {
 
   return {
     LABEL_COLORS, LABELS, THEMES, EMOJIS, MARKERS,
-    init, get, on, save, replaceAll,
+    init, get, on, save, flush, replaceAll,
     getBoard, getList, getCard, locate, cardCount,
     addBoard, renameBoard, deleteBoard, duplicateBoard, reorderBoards, selectBoard, clearBoard,
     addList, renameList, deleteList, reorderLists, clearList,

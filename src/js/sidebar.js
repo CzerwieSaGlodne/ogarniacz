@@ -36,8 +36,10 @@ window.Sidebar = (function () {
           <span class="board-dot" style="background:${dot}"></span>
           <span class="board-name">${window.UI.esc(board.name)}</span>
           <span class="board-count">${cards}</span>
+          <button class="mini-menu" data-role="board-menu" data-id="${board.id}"
+                  title="Menu tablicy" aria-label="Menu tablicy: ${window.UI.esc(board.name)}">⋯</button>
           <button class="mini-del" data-role="delete-board" data-id="${board.id}"
-                  title="Usuń tablicę">✕</button>
+                  title="Usuń tablicę" aria-label="Usuń tablicę: ${window.UI.esc(board.name)}">✕</button>
         </div>`;
     }).join('');
   }
@@ -79,7 +81,7 @@ window.Sidebar = (function () {
     if (!item) return;
 
     item.querySelector('.board-name').outerHTML =
-      '<input class="title-input" style="width:100%;font-size:13px;padding:2px 5px" data-role="name-input">';
+      '<input class="title-input board-name-input" data-role="name-input">';
 
     const input = item.querySelector('[data-role="name-input"]');
     input.focus();
@@ -99,8 +101,49 @@ window.Sidebar = (function () {
     input.addEventListener('blur', () => finish(true));
   }
 
+  /* Wspólne menu tablicy: przycisk „⋯” i prawy przycisk myszy. */
+  function boardMenu(anchor, boardId, position) {
+    const board = window.Store.getBoard(boardId);
+    if (!board) return;
+
+    const state = window.Store.get();
+    const index = state.boards.findIndex((b) => b.id === boardId);
+    const items = [
+      { heading: board.name },
+      { label: 'Otwórz tablicę', icon: '📂', onClick: () => {
+        window.Store.selectBoard(board.id);
+        if (window.Mobile) window.Mobile.closeDrawer();
+      } },
+      { label: 'Duplikuj tablicę', icon: '📋', onClick: () => {
+        window.Store.duplicateBoard(board.id);
+        window.UI.toast('Tablica skopiowana.');
+      } }
+    ];
+
+    if (index > 0) {
+      items.push({ label: 'Przesuń tablicę w górę', icon: '↑', onClick: () =>
+        window.Store.reorderBoards(board.id, state.boards[index - 1].id) });
+    }
+    if (index !== -1 && index < state.boards.length - 1) {
+      items.push({ label: 'Przesuń tablicę w dół', icon: '↓', onClick: () =>
+        window.Store.reorderBoards(board.id, state.boards[index + 1].id) });
+    }
+
+    items.push({ sep: true });
+    items.push({ label: 'Usuń tablicę', icon: '🗑️', danger: true, onClick: () => deleteBoard(board.id) });
+
+    window.UI.popover(anchor, items, position);
+  }
+
   function init() {
     listEl.addEventListener('click', (e) => {
+      const menu = e.target.closest('[data-role="board-menu"]');
+      if (menu) {
+        e.stopPropagation();
+        boardMenu(menu, menu.dataset.id);
+        return;
+      }
+
       const del = e.target.closest('[data-role="delete-board"]');
       if (del) {
         e.stopPropagation();
@@ -108,7 +151,10 @@ window.Sidebar = (function () {
         return;
       }
       const item = e.target.closest('.board-item');
-      if (item) window.Store.selectBoard(item.dataset.id);
+      if (item) {
+        window.Store.selectBoard(item.dataset.id);
+        if (window.Mobile) window.Mobile.closeDrawer();
+      }
     });
 
     /* prawy przycisk myszy na tablicy - to samo menu */
@@ -116,13 +162,8 @@ window.Sidebar = (function () {
       const item = e.target.closest('.board-item');
       if (!item) return;
       const board = window.Store.getBoard(item.dataset.id);
-      window.UI.popover(item, [
-        { heading: board.name },
-        { label: 'Otwórz tablicę', icon: '📂', onClick: () => window.Store.selectBoard(board.id) },
-        { label: 'Duplikuj tablicę', icon: '📋', onClick: () => window.Store.duplicateBoard(board.id) },
-        { sep: true },
-        { label: 'Usuń tablicę', icon: '🗑️', danger: true, onClick: () => deleteBoard(board.id) }
-      ], { x: e.clientX, y: e.clientY });
+      if (!board) return;
+      boardMenu(item, board.id, { x: e.clientX, y: e.clientY });
     });
 
     searchEl.addEventListener('input', () => {
@@ -134,7 +175,7 @@ window.Sidebar = (function () {
 
     /* Ctrl+K lub "/" - skok do wyszukiwarki */
     document.addEventListener('keydown', (e) => {
-      const typing = e.target.matches('input, textarea');
+      const typing = e.target && e.target.matches && e.target.matches('input, textarea');
       if ((e.ctrlKey && e.key.toLowerCase() === 'k') || (!typing && e.key === '/')) {
         e.preventDefault();
         searchEl.focus();

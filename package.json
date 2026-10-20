@@ -1,7 +1,7 @@
 {
   "name": "ogarniacz",
-  "version": "1.2.0",
-  "description": "OGARNIACZ - tablice z zadaniami w stylu Trello",
+  "version": "1.3.0",
+  "description": "OGARNIACZ - tablice z zadaniami w stylu Trello (desktop i PWA na telefon)",
   "main": "electron/main.js",
   "author": "Natalia",
   "license": "MIT",
