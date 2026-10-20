@@ -1,0 +1,136 @@
+﻿/* ============================================================
+   MOTYWY
+   Pełne kolory, bez gradientów i bez czystej bieli.
+   ============================================================ */
+
+:root {
+  --radius-list: 14px;
+  --radius-card: 10px;
+  --radius-sm: 8px;
+  --sidebar-w: 252px;
+  --list-w: 290px;
+  --titlebar-h: 40px;
+  --font: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+  --ease: cubic-bezier(.2, .7, .3, 1);
+
+  /* wartości domyślne dla pomocniczych kolorów (motywy mogą je nadpisać) */
+  --ok-bg: #d8efe0;
+  --ok-text: #2c6b47;
+  --danger-bg: #f7e2e2;
+  --danger-hover-bg: #fbe6e6;
+
+  /* pasek u góry z nazwą tablicy i wyborem motywu */
+  --head-bg: var(--surface);
+  --head-text: var(--text);
+  --head-muted: var(--muted);
+  --head-chip: var(--surface-3);
+  --head-chip-text: var(--muted);
+  --head-border: var(--border);
+}
+
+/* ---------- PASTELOWY: pudrowy róż, błękit, mięta, maśl ---------- */
+:root,
+[data-theme="pastel"] {
+  --bg: #e4d2de;
+  --bg-app: #e4d2de;
+  --bg-2: #d8c4d4;
+  --surface: #f3edf4;
+  --surface-2: #eae2eb;
+  --surface-3: #ded3e1;
+  --text: #4a4460;
+  --muted: #5f5878;
+
+  --accent: #b184d4;
+  --accent-2: #f295bf;
+  --accent-3: #7cc0e8;
+  --accent-4: #8ad4a0;
+  --accent-5: #f2c877;
+  --on-accent: #ffffff;
+
+  --border: #dbcddd;
+  --shadow: 0 10px 26px rgba(100, 75, 130, .16);
+  --shadow-sm: 0 3px 10px rgba(100, 75, 130, .14);
+  --card-bg: #f0e7ef;
+  --drag-accent: rgba(177, 132, 212, .26);
+
+  /* ciemny pasek u góry */
+  --head-bg: #4a4460;
+  --head-text: #f3f0f9;
+  --head-muted: #cec5e2;
+  --head-chip: rgba(255, 255, 255, .14);
+  --head-chip-text: #e6e0f2;
+  --head-border: rgba(255, 255, 255, .18);
+}
+
+/* ---------- CIEMNY: granat, fiolet, mięta, róż ---------- */
+[data-theme="dark"] {
+  --bg: #0f1118;
+  --bg-app: #0f1118;
+  --bg-2: #14171f;
+  --surface: #171b24;
+  --surface-2: #1e222d;
+  --surface-3: #262b38;
+  --text: #dbe0ec;
+  --muted: #a0a9be;
+
+  --accent: #7f9cf0;
+  --accent-2: #b98ce0;
+  --accent-3: #55d0b2;
+  --accent-4: #e984a6;
+  --accent-5: #efc766;
+  --on-accent: #ffffff;
+
+  --border: #2b3140;
+  --shadow: 0 12px 30px rgba(0, 0, 0, .45);
+  --shadow-sm: 0 4px 12px rgba(0, 0, 0, .35);
+  --card-bg: #1b1f29;
+  --drag-accent: rgba(127, 156, 240, .28);
+
+  /* ciemny pasek u góry */
+  --head-bg: #1b1f29;
+  --head-text: #e6eaf4;
+  --head-muted: #a9b2c6;
+  --head-chip: #262b38;
+  --head-chip-text: #b9c1d3;
+  --head-border: #2f3646;
+}
+
+/* ---------- COZY: szałwia, piask i taupe ---------- */
+[data-theme="cozy"] {
+  --bg: #c9d8cf;
+  --bg-app: #c9d8cf;          /* tło tablicy */
+  --bg-2: #aab7b0;            /* pasek boczny - głębszy, ramuje aplikację */
+  --surface: #ebf3ea;         /* karty, okna, przyciski */
+  --surface-2: #d0c7bc;       /* listy */
+  --surface-3: #cdd8d0;       /* liczniki, tło pasków postępu */
+  --text: #33302f;
+  --muted: #5f5a50;
+
+  --accent: #bba89c;
+  --accent-2: #8fae93;       /* zieleń */
+  --accent-3: #a8845c;       /* brąz */
+  --accent-4: #7d6a52;       /* ciemny brąz */
+  --accent-5: #6f9c86;       /* głębsza zieleń */
+  --on-accent: #33302f;
+
+  --border: #aab7b0;
+  --shadow: 0 10px 26px rgba(51, 48, 47, .24);
+  --shadow-sm: 0 3px 10px rgba(51, 48, 47, .18);
+  --card-bg: #ebf3ea;          /* aktywne karty */
+  --card-bg-done: #ded7c9;    /* wykonane karty - jasne, widać je tło listy */
+  --drag-accent: rgba(51, 48, 47, .24);
+
+  /* pomocnicze kolory w klimacie motywu */
+  --ok-bg: #c4d2c2;
+  --ok-text: #3d5245;
+  --danger-bg: #e2d0cb;
+  --danger-hover-bg: #e8d3cd;
+
+  /* ciemny pasek u góry - brąz */
+  --head-bg: #6f5c48;
+  --head-text: #f5f0e8;
+  --head-muted: #ddd1c1;
+  --head-chip: rgba(255, 255, 255, .16);
+  --head-chip-text: #ece1d2;
+  --head-border: rgba(255, 255, 255, .2);
+}

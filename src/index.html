@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="pl" data-theme="pastel">
+<head>
+  <meta charset="UTF-8">
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'">
+  <title>OGARNIACZ</title>
+  <link rel="stylesheet" href="css/themes.css">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="titlebar">OGARNIACZ</div>
+
+  <div class="app">
+    <!-- ============ Pasek boczny ============ -->
+    <aside class="sidebar">
+      <div class="brand">
+        <img src="assets/logo.png" alt="">
+        <span class="brand-name">OgarNIACZ</span>
+      </div>
+
+      <div class="search-wrap">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"
+             stroke-linecap="round">
+          <circle cx="11" cy="11" r="7"></circle>
+          <path d="m20 20-3.2-3.2"></path>
+        </svg>
+        <input id="boardSearch" type="search" placeholder="Szukaj tablic..." autocomplete="off" spellcheck="false">
+      </div>
+
+      <nav class="board-list" id="boardList"></nav>
+
+      <button class="btn add-board" id="addBoardBtn">+ Nowa tablica</button>
+
+      <div class="sidebar-foot">
+        <button class="side-link" id="exportBtn">
+          <span>💾</span> Zapisz kopię tablic
+        </button>
+        <button class="side-link" id="importBtn">
+          <span>📂</span> Wczytaj kopię tablic
+        </button>
+      </div>
+    </aside>
+
+    <!-- ============ Tablica ============ -->
+    <main class="main">
+      <header class="board-head">
+        <h1 class="board-title" id="boardTitle" title="Kliknij, aby zmienić nazwę">Tablica</h1>
+        <span class="board-count" id="boardStats"></span>
+        <div class="head-spacer"></div>
+        <button class="theme-btn" id="themeBtn" title="Zmień motyw">
+          <span class="theme-swatch"><i></i><i></i><i></i></span>
+          <span id="themeName">Pastelowy</span>
+        </button>
+        <button class="icon-btn" id="boardMenuBtn" title="Menu tablicy">⋯</button>
+      </header>
+
+      <div class="board-scroll" id="boardScroll">
+        <div class="board-lists" id="boardLists"></div>
+        <button class="add-tile" id="addListBtn">+ Dodaj listę</button>
+      </div>
+    </main>
+  </div>
+
+  <!-- okno karty, potwierdzenia i menu wstawiane są tutaj -->
+  <div id="layer"></div>
+
+  <script src="js/seed.js"></script>
+  <script src="js/store.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/dnd.js"></script>
+  <script src="js/sidebar.js"></script>
+  <script src="js/board.js"></script>
+  <script src="js/card.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
