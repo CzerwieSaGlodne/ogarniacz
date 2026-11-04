@@ -465,17 +465,24 @@ window.SyncApp = (function () {
   }
 
   async function newCode() {
-    if (!window.api || !window.api.syncNewCode) return;
+    if (!window.api || !window.api.syncNewCode || panelBusy) return;
     panelBusy = true;
-    renderPanel();
     try {
+      renderPanel();
       desktopStatus = await window.api.syncNewCode() || desktopStatus;
-    } catch {
+      if (!desktopStatus || !desktopStatus.code) {
+        /* Jeśli serwer nie zwrócił nowego kodu, odśwież status z serwera. */
+        desktopStatus = await window.api.syncStatus().catch(() => desktopStatus) || desktopStatus;
+      }
+    } catch (err) {
+      console.error('newCode error:', err);
       window.UI.toast('Nie udało się utworzyć nowego kodu.');
+      desktopStatus = await window.api.syncStatus().catch(() => desktopStatus) || desktopStatus;
+    } finally {
+      panelBusy = false;
+      updateIndicator();
+      renderPanel();
     }
-    panelBusy = false;
-    updateIndicator();
-    renderPanel();
   }
 
   async function unpairDesktop() {
@@ -485,14 +492,19 @@ window.SyncApp = (function () {
       okText: 'Odłącz'
     });
     if (!ok) return;
+    panelBusy = true;
     try {
       desktopStatus = await window.api.syncUnpair() || desktopStatus;
       window.UI.toast('Telefon odłączony.');
     } catch {
       window.UI.toast('Nie udało się odłączyć telefonu.');
+    } finally {
+      panelBusy = false;
+      updateIndicator();
+      renderPanel();
+      /* Upewnij się, że panel ma najświeższy status (kod wyczyszczony, paired=false). */
+      refreshDesktopStatus();
     }
-    updateIndicator();
-    renderPanel();
   }
 
   /* ---------- Desktop: odbiór zmian z telefonu ---------- */
