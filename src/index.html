@@ -5,19 +5,20 @@
   <meta name="viewport"
         content="width=device-width, initial-scale=1, viewport-fit=cover, interactive-widget=resizes-content">
   <meta http-equiv="Content-Security-Policy"
-        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; manifest-src 'self'; connect-src 'self'">
+        content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; worker-src 'self'; manifest-src 'self'; connect-src 'self' https://*.ts.net:* http://127.0.0.1:47823 http://localhost:47823">
   <meta name="theme-color" content="#4a4460" id="themeColor">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="OGARNIACZ">
+  <meta name="ogarniacz-version" content="1.4.0">
   <title>OGARNIACZ</title>
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" sizes="192x192" href="assets/icon-192.png">
   <link rel="apple-touch-icon" href="assets/icon-192.png">
-  <link rel="stylesheet" href="css/themes.css">
-  <link rel="stylesheet" href="css/app.css">
-  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/themes.css?v=1.4.0">
+  <link rel="stylesheet" href="css/app.css?v=1.4.0">
+  <link rel="stylesheet" href="css/mobile.css?v=1.4.0">
 </head>
 <body>
   <div class="titlebar">OGARNIACZ</div>
@@ -46,6 +47,11 @@
       <button class="btn add-board" id="addBoardBtn">+ Nowa tablica</button>
 
       <div class="sidebar-foot">
+        <button class="side-link" id="syncBtn" title="Synchronizacja z telefonem">
+          <span>🔄</span> Synchronizacja
+          <span class="sync-dot" id="syncDot" aria-hidden="true"></span>
+        </button>
+        <div class="sync-mini" id="syncMini"></div>
         <button class="side-link" id="installBtn" hidden>
           <span>📲</span> Zainstaluj aplikację
         </button>
@@ -90,15 +96,17 @@
   <!-- okno karty, potwierdzenia i menu wstawiane są tutaj -->
   <div id="layer"></div>
 
-  <script src="js/seed.js"></script>
-  <script src="js/storage.js"></script>
-  <script src="js/store.js"></script>
-  <script src="js/ui.js"></script>
-  <script src="js/dnd.js"></script>
-  <script src="js/sidebar.js"></script>
-  <script src="js/board.js"></script>
-  <script src="js/card.js"></script>
-  <script src="js/app.js"></script>
-  <script src="js/pwa.js"></script>
+  <script src="js/seed.js?v=1.4.0"></script>
+  <script src="js/storage.js?v=1.4.0"></script>
+  <script src="js/sync-core.js?v=1.4.0"></script>
+  <script src="js/store.js?v=1.4.0"></script>
+  <script src="js/ui.js?v=1.4.0"></script>
+  <script src="js/dnd.js?v=1.4.0"></script>
+  <script src="js/sidebar.js?v=1.4.0"></script>
+  <script src="js/board.js?v=1.4.0"></script>
+  <script src="js/card.js?v=1.4.0"></script>
+  <script src="js/sync.js?v=1.4.0"></script>
+  <script src="js/app.js?v=1.4.0"></script>
+  <script src="js/pwa.js?v=1.4.0"></script>
 </body>
 </html>

@@ -46,6 +46,7 @@
 
   /* Service worker tylko na HTTPS i lokalnym podglądzie. Electron ładuje
      pliki przez file://, gdzie service worker nie jest potrzebny. */
+  const APP_VERSION = '1.4.0';
   const canRegister = 'serviceWorker' in navigator && (
     location.protocol === 'https:' ||
     location.hostname === 'localhost' ||
@@ -53,15 +54,30 @@
   );
 
   if (canRegister) {
-    window.addEventListener('load', () => {
-      navigator.serviceWorker.register('./sw.js').catch(() => {
-        /* Brak service workera nie blokuje aplikacji - tylko offline. */
-      });
+    window.addEventListener('load', async () => {
+      let registration = null;
+      try {
+        registration = await navigator.serviceWorker.register('./sw.js');
+      } catch {
+        return; /* brak service workera nie blokuje aplikacji - tylko offline */
+      }
+
+      /* Aktualizacja instaluje się w tle i obejmuje kolejne otwarcie
+         aplikacji. Nowe pliki mają znacznik wersji, więc nie mieszają się
+         ze starymi. */
+      const checkUpdate = () => {
+        if (document.visibilityState !== 'visible') return;
+        registration.update().catch(() => {});
+      };
+      setTimeout(checkUpdate, 1500);
+      document.addEventListener('visibilitychange', checkUpdate);
+      window.addEventListener('online', checkUpdate);
     });
   }
 
   window.PWA = {
     install,
+    version: APP_VERSION,
     get standalone() { return standalone; },
     get canInstall() { return !!deferredPrompt; }
   };

@@ -1,9 +1,10 @@
 'use strict';
 /* Okno aplikacji, menu, zapis danych w pliku data.json */
 
-const { app, BrowserWindow, ipcMain, dialog, Menu, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Menu, shell, Tray, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs/promises');
+const { createSyncHub } = require('./sync-server.js');
 
 const APP_TITLE = 'OGARNIACZ';
 const isDev = !app.isPackaged;
@@ -20,13 +21,21 @@ const TITLE_BAR_BY_THEME = {
 };
 
 let win = null;
+let tray = null;
+let syncHub = null;
+let isQuitting = false;
+const startHidden = process.argv.includes('--hidden');
 
 /* Wersja przenośna trzyma dane w folderze "data" obok programu,
    dzięki czemu wystarczy skopiować plik i nie potrzeba uprawnień administratora. */
 const isPortable = !!process.env.PORTABLE_EXECUTABLE_DIR;
-const dataDir = isPortable
-  ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
-  : app.getPath('userData');
+/* Zmienna jest używana tylko podczas testów - pozwala nie dotykać
+   prawdziwych danych użytkownika. */
+const dataDir = process.env.OGARNIACZ_DATA_DIR
+  ? path.resolve(process.env.OGARNIACZ_DATA_DIR)
+  : isPortable
+    ? path.join(process.env.PORTABLE_EXECUTABLE_DIR, 'data')
+    : app.getPath('userData');
 
 const dataFile = () => path.join(dataDir, 'data.json');
 const boundsFile = () => path.join(dataDir, 'window.json');
@@ -62,11 +71,19 @@ function createWindow() {
   win.loadFile(path.join(__dirname, '..', 'src', 'index.html'));
 
   win.once('ready-to-show', () => {
-    win.show();
+    const hideOnStart = startHidden && keepInTray();
+    if (!hideOnStart) win.show();
     if (isDev) win.webContents.openDevTools({ mode: 'detach' });
   });
 
-  win.on('close', saveBounds);
+  win.on('close', (event) => {
+    saveBounds();
+    if (!isQuitting && keepInTray()) {
+      event.preventDefault();
+      win.hide();
+      updateTrayMenu();
+    }
+  });
   win.on('closed', () => { win = null; });
 
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -101,6 +118,11 @@ ipcMain.handle('data:load', async () => {
 
 ipcMain.handle('data:save', async (_e, data) => {
   try {
+    if (syncHub) {
+      const result = await syncHub.absorbDesktop(data);
+      if (result && result.ok === false) return result;
+      return { ok: true };
+    }
     await fs.mkdir(dataDir, { recursive: true });
     await fs.writeFile(dataFile(), JSON.stringify(data, null, 2), 'utf8');
     return { ok: true };
@@ -110,6 +132,33 @@ ipcMain.handle('data:save', async (_e, data) => {
 });
 
 ipcMain.handle('data:path', async () => dataFile());
+
+/* ---------- Synchronizacja ---------- */
+
+ipcMain.handle('sync:status', async () => (syncHub ? syncHub.getStatus() : null));
+ipcMain.handle('sync:enable', async () => {
+  if (!syncHub) return null;
+  const status = await syncHub.enable();
+  applyLoginItem();
+  refreshTray();
+  showWindowIfNeeded();
+  return status;
+});
+ipcMain.handle('sync:disable', async () => {
+  if (!syncHub) return null;
+  const status = await syncHub.disable();
+  refreshTray();
+  return status;
+});
+ipcMain.handle('sync:new-code', async () => (syncHub ? syncHub.newPairCode() : null));
+ipcMain.handle('sync:unpair', async () => (syncHub ? syncHub.unpair() : null));
+ipcMain.handle('sync:set-options', async (_e, options) => {
+  if (!syncHub) return null;
+  const status = await syncHub.setOptions(options);
+  applyLoginItem();
+  refreshTray();
+  return status;
+});
 
 ipcMain.handle('ui:titlebar', async (_e, themeId) => {
   if (!win || win.isDestroyed()) return false;
@@ -145,6 +194,105 @@ ipcMain.handle('dialog:import', async () => {
   return { ok: true, data: JSON.parse(raw), path: result.filePaths[0] };
 });
 
+/* ---------- Tray i autostart ---------- */
+
+function showWindow() {
+  if (!win || win.isDestroyed()) {
+    createWindow();
+    return;
+  }
+  if (win.isMinimized()) win.restore();
+  win.show();
+  win.focus();
+}
+
+function showWindowIfNeeded() {
+  if (!win || win.isDestroyed() || win.isVisible()) return;
+  if (!startHidden) showWindow();
+}
+
+function applyLoginItem() {
+  if (!syncHub || !app.isPackaged) return;
+  try {
+    app.setLoginItemSettings({
+      openAtLogin: !!syncHub.settings.startAtLogin,
+      path: process.execPath,
+      args: ['--hidden']
+    });
+  } catch (err) {
+    console.error('Nie udało się ustawić autostartu:', err.message);
+  }
+}
+
+function trayStatusText() {
+  if (!syncHub) return 'Synchronizacja wyłączona';
+  const status = syncHub.getStatus();
+  if (!status.enabled) return 'Synchronizacja wyłączona';
+  if (!status.ready) return 'Synchronizacja: sprawdź Tailscale';
+  if (status.paired) return 'Synchronizacja z telefonem włączona';
+  return 'Synchronizacja: czekam na telefon';
+}
+
+function updateTrayMenu() {
+  if (!tray) return;
+  tray.setToolTip('OGARNIACZ — ' + trayStatusText());
+  tray.setContextMenu(Menu.buildFromTemplate([
+    { label: 'Otwórz OGARNIACZ', click: showWindow },
+    { label: trayStatusText(), enabled: false },
+    { type: 'separator' },
+    {
+      label: 'Synchronizacja z telefonem…',
+      click: () => {
+        showWindow();
+        if (win && !win.isDestroyed()) win.webContents.send('menu:sync');
+      }
+    },
+    { type: 'separator' },
+    {
+      label: 'Zakończ OGARNIACZ',
+      click: () => { isQuitting = true; app.quit(); }
+    }
+  ]));
+}
+
+function createTray() {
+  if (tray) return;
+  let image = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png'));
+  if (!image.isEmpty()) image = image.resize({ width: 16, height: 16 });
+  try {
+    tray = new Tray(image);
+    tray.on('click', showWindow);
+    updateTrayMenu();
+  } catch (err) {
+    tray = null;
+    console.error('Nie udało się utworzyć ikony w zasobniku:', err.message);
+  }
+}
+
+function refreshTray() {
+  const shouldShow = !!(syncHub && syncHub.settings.enabled && syncHub.settings.runInTray);
+  if (shouldShow) {
+    createTray();
+    updateTrayMenu();
+  } else if (tray) {
+    tray.destroy();
+    tray = null;
+  }
+}
+
+function keepInTray() {
+  return !!(syncHub && syncHub.settings.enabled && syncHub.settings.runInTray && tray);
+}
+
+function syncStatusChanged(status) {
+  if (win && !win.isDestroyed()) win.webContents.send('sync:status', status);
+  updateTrayMenu();
+}
+
+function syncStateFromPhone(state) {
+  if (win && !win.isDestroyed()) win.webContents.send('sync:state', state);
+}
+
 /* ---------- Menu ---------- */
 
 function send(channel) {
@@ -158,6 +306,13 @@ function buildMenu() {
       submenu: [
         { label: 'Zapisz kopię…', accelerator: 'CmdOrCtrl+E', click: send('menu:export') },
         { label: 'Wczytaj kopię…', accelerator: 'CmdOrCtrl+I', click: send('menu:import') },
+        {
+          label: 'Synchronizacja z telefonem…',
+          click: () => {
+            showWindow();
+            if (win && !win.isDestroyed()) win.webContents.send('menu:sync');
+          }
+        },
         { type: 'separator' },
         { label: 'Zamknij', accelerator: 'CmdOrCtrl+W', role: 'close' },
         { label: 'Wyjdź', accelerator: 'Alt+F4', role: 'quit' }
@@ -230,19 +385,30 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (win) {
-      if (win.isMinimized()) win.restore();
-      win.focus();
-    }
+    showWindow();
   });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    syncHub = createSyncHub({
+      dataDir,
+      dataFile: dataFile(),
+      appVersion: app.getVersion(),
+      onStatus: syncStatusChanged,
+      onState: syncStateFromPhone
+    });
+    await syncHub.init();
+    applyLoginItem();
     buildMenu();
     createWindow();
+    refreshTray();
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) createWindow();
+      else showWindow();
     });
   });
 
-  app.on('window-all-closed', () => app.quit());
+  app.on('before-quit', () => { isQuitting = true; });
+  app.on('window-all-closed', () => {
+    if (!keepInTray()) app.quit();
+  });
 }

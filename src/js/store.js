@@ -43,6 +43,8 @@ window.Store = (function () {
   let state = null;
   let saveTimer = null;
   let saveErrorShown = false;
+  let applyingRemote = false;
+  let lastMarkedBoards = null;
   const listeners = new Set();
 
   /* ---------- I/O ---------- */
@@ -51,11 +53,17 @@ window.Store = (function () {
     const raw = window.StoreIO ? await window.StoreIO.load() : null;
     if (raw && Array.isArray(raw.boards) && raw.boards.length) {
       state = repair(raw);
+      /* Starsze kopie nie mają metadanych synchronizacji - dodajemy je
+         przy pierwszym uruchomieniu nowej wersji. */
+      state = window.SyncCore.ensure(state, { time: Date.now() });
+      await persist();
     } else {
       state = window.Seed.create();
+      state = window.SyncCore.ensure(state, { time: Date.now() });
       await persist();
     }
     if (!getBoard(state.selectedBoardId)) state.selectedBoardId = state.boards[0].id;
+    lastMarkedBoards = window.SyncCore.clone(state.boards);
     return state;
   }
 
@@ -95,6 +103,9 @@ window.Store = (function () {
 
     if (!data.boards.length) data.boards = window.Seed.create().boards;
     if (!data.selectedBoardId) data.selectedBoardId = data.boards[0].id;
+    /* Metadane synchronizacji są osobnym, niewidocznym dla użytkownika
+       fragmentem zapisu. Dzięki nim można bezpiecznie scalać zmiany. */
+    if (raw.sync && typeof raw.sync === 'object') data.sync = raw.sync;
     return data;
   }
 
@@ -103,6 +114,10 @@ window.Store = (function () {
   function on(fn) { listeners.add(fn); return () => listeners.delete(fn); }
 
   function emit(reason) {
+    if (!applyingRemote && state && state.sync && window.SyncCore) {
+      window.SyncCore.mark(state, lastMarkedBoards, { by: state.sync.deviceId });
+    }
+    if (state && window.SyncCore) lastMarkedBoards = window.SyncCore.clone(state.boards);
     save();
     listeners.forEach((fn) => fn(reason));
   }
@@ -135,10 +150,40 @@ window.Store = (function () {
   window.addEventListener('pagehide', () => { flush(); });
 
   async function replaceAll(newState) {
+    const deviceId = state && state.sync && state.sync.deviceId;
     state = repair(newState);
+    state = window.SyncCore.ensure(state, { deviceId, time: Date.now() });
     if (!getBoard(state.selectedBoardId)) state.selectedBoardId = state.boards[0].id;
+    lastMarkedBoards = window.SyncCore.clone(state.boards);
     await persist();
     emit('replace');
+  }
+
+  /* Stan scalony z komputerem. Ustawienia wyglądu i wybrana tablica
+     zostają lokalne, a znaczniki czasu nie są sztucznie odmładzane. */
+  async function applyRemote(newState) {
+    const previous = state || {};
+    const deviceId = previous.sync && previous.sync.deviceId;
+    const selected = previous.selectedBoardId;
+    const theme = previous.theme;
+    const dim = previous.dim;
+
+    state = repair(newState);
+    state = window.SyncCore.ensure(state, { deviceId, time: 0 });
+    state.theme = theme || state.theme;
+    state.dim = dim == null ? state.dim : dim;
+    const keepSelected = selected && state.boards.some((b) => b.id === selected);
+    if (keepSelected) state.selectedBoardId = selected;
+    if (!getBoard(state.selectedBoardId)) state.selectedBoardId = state.boards[0].id;
+
+    lastMarkedBoards = window.SyncCore.clone(state.boards);
+    applyingRemote = true;
+    try {
+      emit('remote');
+    } finally {
+      applyingRemote = false;
+    }
+    await flush();
   }
 
   /* ---------- Odczyty ---------- */
@@ -394,7 +439,7 @@ window.Store = (function () {
 
   return {
     LABEL_COLORS, LABELS, THEMES, EMOJIS, MARKERS,
-    init, get, on, save, flush, replaceAll,
+    init, get, on, save, flush, replaceAll, applyRemote,
     getBoard, getList, getCard, locate, cardCount,
     addBoard, renameBoard, deleteBoard, duplicateBoard, reorderBoards, selectBoard, clearBoard,
     addList, renameList, deleteList, reorderLists, clearList,

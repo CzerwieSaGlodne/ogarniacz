@@ -725,3 +725,48 @@
     transition-duration: .01ms !important;
   }
 }
+
+@media (max-width: 900px) {
+  /* ---------- Synchronizacja na telefonie ---------- */
+
+  .sync-overlay {
+    place-items: center;
+    padding: 14px;
+    background: rgba(20, 16, 30, .52);
+    backdrop-filter: none;
+    z-index: 990;
+  }
+
+  .sync-box {
+    width: 100%;
+    max-width: 460px;
+    max-height: 90vh;
+    max-height: 90dvh;
+    border-radius: 20px;
+    padding: 0;
+    animation: pop .16s var(--ease);
+  }
+
+  .sync-head {
+    padding: 16px 14px 11px;
+    gap: 8px;
+  }
+
+  .sync-head h3 { font-size: 18px; }
+  .sync-sub { font-size: 12.5px; }
+  .sync-close { width: 44px; height: 44px; font-size: 18px; }
+
+  .sync-body { padding: 14px 14px calc(16px + env(safe-area-inset-bottom)); }
+
+  .sync-input { font-size: 16px; min-height: 48px; padding: 11px 12px; }
+  .sync-url { font-size: 12px; padding: 11px 12px; }
+  .sync-code { font-size: 34px; padding: 8px 14px; }
+  .sync-code-input { font-size: 24px; min-height: 50px; }
+  .sync-actions .btn { min-height: 48px; font-size: 15px; flex: 1; min-width: 130px; }
+  .sync-actions .btn-small { min-height: 44px; font-size: 13px; }
+  .sync-actions .btn-ghost { flex-basis: 100%; }
+  .sync-check { font-size: 14px; gap: 10px; }
+  .sync-check input { width: 22px; height: 22px; }
+  .sync-mini { font-size: 12px; padding-bottom: 4px; }
+  .sync-state { font-size: 14px; padding: 11px 12px; }
+}

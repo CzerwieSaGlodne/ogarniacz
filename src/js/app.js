@@ -84,7 +84,20 @@ window.App = (function () {
       if (layer && layer.name === 'drawer') closeLayer();
     }
 
-    return { isMobile, openLayer, closeLayer, openDrawer, closeDrawer };
+    /* Otwiera panel w miejsce otwartej szuflady, bez dokładania wpisu
+       do historii. Wstecz zamyka wtedy panel, a nie całą aplikację. */
+    function openPanel(name, closeFn) {
+      if (!isMobile()) return;
+      if (layer && layer.name === 'drawer') {
+        document.body.classList.remove('drawer-open');
+        layer = { name, closeFn };
+        try { history.replaceState({ ogLayer: name }, ''); } catch { /* brak historii */ }
+        return;
+      }
+      if (!layer) openLayer(name, closeFn);
+    }
+
+    return { isMobile, openLayer, closeLayer, openDrawer, closeDrawer, openPanel };
   })();
 
   window.Mobile = Mobile;
@@ -102,8 +115,8 @@ window.App = (function () {
   }
 
   window.Store.on((reason) => {
-    if (reason === 'theme' || reason === 'replace') applyTheme(window.Store.get().theme);
-    if (reason === 'dim' || reason === 'replace') window.UI.setDim(window.Store.get().dim);
+    if (reason === 'theme' || reason === 'replace' || reason === 'remote') applyTheme(window.Store.get().theme);
+    if (reason === 'dim' || reason === 'replace' || reason === 'remote') window.UI.setDim(window.Store.get().dim);
   });
 
   /* ---------- Kopie tablic ---------- */
@@ -205,10 +218,11 @@ window.App = (function () {
       <div class="welcome-box">
         <img src="assets/logo.png" alt="">
         <h2>OGARNIACZ na telefonie</h2>
-        <p>Tablice zapisują się tylko na tym telefonie. Zrób kopię zapasową,
-           żeby ich nie stracić przy czyszczeniu danych Chrome.</p>
+        <p>Dane zapisują się na tym telefonie. Możesz połączyć go z komputerem,
+           żeby tablice same się uzupełniały — albo nadal używać kopii zapasowej.</p>
         <div class="welcome-actions">
-          <button class="btn btn-primary" data-role="welcome-import">📂 Wczytaj kopię z komputera</button>
+          <button class="btn btn-primary" data-role="welcome-sync">🔄 Połącz z komputerem</button>
+          <button class="btn" data-role="welcome-import">📂 Wczytaj kopię z komputera</button>
           <button class="btn" data-role="welcome-empty">Zacznij od pustej tablicy</button>
           <button class="btn btn-ghost" data-role="welcome-demo">Zostaw przykładowe tablice</button>
         </div>
@@ -219,6 +233,12 @@ window.App = (function () {
     overlay.addEventListener('click', async (e) => {
       const role = e.target.closest('[data-role]');
       if (!role) return;
+
+      if (role.dataset.role === 'welcome-sync') {
+        close();
+        if (window.SyncApp) window.SyncApp.open();
+        return;
+      }
 
       if (role.dataset.role === 'welcome-import') {
         const ok = await importData();
@@ -302,6 +322,7 @@ window.App = (function () {
     window.Card.init();
     shortcuts();
     mobileMenu();
+    if (window.SyncApp && window.SyncApp.init) window.SyncApp.init();
 
     document.getElementById('exportBtn').addEventListener('click', exportData);
     document.getElementById('importBtn').addEventListener('click', importData);
@@ -309,6 +330,7 @@ window.App = (function () {
     if (window.api && window.api.onMenu) {
       window.api.onMenu('menu:export', exportData);
       window.api.onMenu('menu:import', importData);
+      window.api.onMenu('menu:sync', () => window.SyncApp && window.SyncApp.open());
     }
 
     window.StoreIO.requestPersistence();
